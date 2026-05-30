@@ -4,15 +4,12 @@ import numpy as np
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
-import joblib
-import tempfile
 import yt_dlp
+import joblib
 
-from collections import Counter
-
-# ==================================================
-# PAGE CONFIG
-# ==================================================
+# =====================================================
+# CONFIG
+# =====================================================
 
 st.set_page_config(
     page_title="Music Genre Classifier",
@@ -20,52 +17,26 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================================================
+# =====================================================
 # LOAD MODELS
-# ==================================================
+# =====================================================
 
-@st.cache_resource
-def load_models():
+lr_model = joblib.load("lr_model_custom.pkl")
+rf_model = joblib.load("rf_model_custom.pkl")
+xgb_model = joblib.load("xgb_model_custom.pkl")
 
-    lr_model = joblib.load(
-        "lr_model_custom.pkl"
-    )
+scaler = joblib.load("scaler_custom.pkl")
+encoder = joblib.load("encoder_custom.pkl")
 
-    rf_model = joblib.load(
-        "rf_model_custom.pkl"
-    )
+# accuracies obtenidas en tu notebook
 
-    xgb_model = joblib.load(
-        "xgb_model_custom.pkl"
-    )
+lr_acc = 0.715
+rf_acc = 0.730
+xgb_acc = 0.735
 
-    scaler = joblib.load(
-        "scaler_custom.pkl"
-    )
-
-    encoder = joblib.load(
-        "encoder_custom.pkl"
-    )
-
-    return (
-        lr_model,
-        rf_model,
-        xgb_model,
-        scaler,
-        encoder
-    )
-
-(
-    lr_model,
-    rf_model,
-    xgb_model,
-    scaler,
-    encoder
-) = load_models()
-
-# ==================================================
-# FEATURE EXTRACTION
-# ==================================================
+# =====================================================
+# AUDIO FEATURE EXTRACTION
+# =====================================================
 
 def extract_features(file_path):
 
@@ -81,86 +52,115 @@ def extract_features(file_path):
         sr=sr
     )
 
-    features["chroma_stft_mean"] = np.mean(chroma_stft)
-    features["chroma_stft_var"] = np.var(chroma_stft)
+    features['chroma_stft_mean'] = np.mean(chroma_stft)
+    features['chroma_stft_var'] = np.var(chroma_stft)
 
     rms = librosa.feature.rms(y=y)
 
-    features["rms_mean"] = np.mean(rms)
-    features["rms_var"] = np.var(rms)
+    features['rms_mean'] = np.mean(rms)
+    features['rms_var'] = np.var(rms)
 
     spectral_centroid = librosa.feature.spectral_centroid(
         y=y,
         sr=sr
     )
 
-    features["spectral_centroid_mean"] = np.mean(spectral_centroid)
-    features["spectral_centroid_var"] = np.var(spectral_centroid)
+    features['spectral_centroid_mean'] = np.mean(spectral_centroid)
+    features['spectral_centroid_var'] = np.var(spectral_centroid)
 
     spectral_bandwidth = librosa.feature.spectral_bandwidth(
         y=y,
         sr=sr
     )
 
-    features["spectral_bandwidth_mean"] = np.mean(spectral_bandwidth)
-    features["spectral_bandwidth_var"] = np.var(spectral_bandwidth)
+    features['spectral_bandwidth_mean'] = np.mean(spectral_bandwidth)
+    features['spectral_bandwidth_var'] = np.var(spectral_bandwidth)
 
     rolloff = librosa.feature.spectral_rolloff(
         y=y,
         sr=sr
     )
 
-    features["rolloff_mean"] = np.mean(rolloff)
-    features["rolloff_var"] = np.var(rolloff)
+    features['rolloff_mean'] = np.mean(rolloff)
+    features['rolloff_var'] = np.var(rolloff)
 
     zcr = librosa.feature.zero_crossing_rate(y)
 
-    features["zero_crossing_rate_mean"] = np.mean(zcr)
-    features["zero_crossing_rate_var"] = np.var(zcr)
+    features['zero_crossing_rate_mean'] = np.mean(zcr)
+    features['zero_crossing_rate_var'] = np.var(zcr)
 
     harmony = librosa.effects.harmonic(y)
 
-    features["harmony_mean"] = np.mean(harmony)
-    features["harmony_var"] = np.var(harmony)
+    features['harmony_mean'] = np.mean(harmony)
+    features['harmony_var'] = np.var(harmony)
 
     perceptr = librosa.feature.spectral_contrast(
         y=y,
         sr=sr
     )
 
-    features["perceptr_mean"] = np.mean(perceptr)
-    features["perceptr_var"] = np.var(perceptr)
+    features['perceptr_mean'] = np.mean(perceptr)
+    features['perceptr_var'] = np.var(perceptr)
 
     tempo, _ = librosa.beat.beat_track(
         y=y,
         sr=sr
     )
 
-    features["tempo"] = float(
+    features['tempo'] = float(
         np.asarray(tempo).item()
-    )
-
-    mfccs = librosa.feature.mfcc(
-        y=y,
-        sr=sr,
-        n_mfcc=20
     )
 
     for i in range(20):
 
-        features[f"mfcc{i+1}_mean"] = np.mean(
-            mfccs[i]
-        )
+        mfcc = librosa.feature.mfcc(
+            y=y,
+            sr=sr,
+            n_mfcc=20
+        )[i]
 
-        features[f"mfcc{i+1}_var"] = np.var(
-            mfccs[i]
-        )
+        features[f'mfcc{i+1}_mean'] = np.mean(mfcc)
+        features[f'mfcc{i+1}_var'] = np.var(mfcc)
 
     return features
 
-# ==================================================
+# =====================================================
+# YOUTUBE DOWNLOAD
+# =====================================================
+
+def download_youtube_audio(url):
+
+    ydl_opts = {
+
+        "format":
+            "bestaudio/best",
+
+        "outtmpl":
+            "youtube_song",
+
+        "postprocessors": [
+
+            {
+                "key":
+                    "FFmpegExtractAudio",
+
+                "preferredcodec":
+                    "wav"
+            }
+        ]
+    }
+
+    with yt_dlp.YoutubeDL(
+        ydl_opts
+    ) as ydl:
+
+        ydl.download([url])
+
+    return "youtube_song.wav"
+
+# =====================================================
 # PREDICTION
-# ==================================================
+# =====================================================
 
 def predict_song_genre(file_path):
 
@@ -172,15 +172,21 @@ def predict_song_genre(file_path):
         [features]
     )
 
-    features_df = features_df.reindex(
+    rf_features = features_df.reindex(
+        columns=rf_model.feature_names_in_,
+        fill_value=0
+    )
+
+    lr_features = features_df.reindex(
         columns=scaler.feature_names_in_,
         fill_value=0
     )
 
-    features_df = features_df.astype(float)
+    rf_features = rf_features.astype(float)
+    lr_features = lr_features.astype(float)
 
     scaled_features = scaler.transform(
-        features_df
+        lr_features
     )
 
     predictions = {
@@ -195,141 +201,223 @@ def predict_song_genre(file_path):
         "Random Forest":
         encoder.inverse_transform(
             rf_model.predict(
-                features_df
+                rf_features
             )
         )[0],
 
         "XGBoost":
         encoder.inverse_transform(
             xgb_model.predict(
-                features_df
+                rf_features
             )
         )[0]
     }
 
-    return predictions
-    # ==================================================
-# INTERFACE
-# ==================================================
+    weights = {
 
-st.title("🎵 Music Genre Classification")
+        "Logistic Regression": lr_acc,
+        "Random Forest": rf_acc,
+        "XGBoost": xgb_acc
+    }
 
-st.markdown("""
-Upload a WAV file or paste a YouTube URL to classify
-its musical genre using:
+    genre_scores = {}
 
-- Logistic Regression
-- Random Forest
-- XGBoost
-""")
+    for model, genre in predictions.items():
 
-input_method = st.radio(
-    "Choose input method",
+        genre_scores[genre] = (
+
+            genre_scores.get(
+                genre,
+                0
+            )
+
+            +
+
+            weights[model]
+        )
+
+    final_prediction = max(
+        genre_scores,
+        key=genre_scores.get
+    )
+
+    confidence = (
+
+        genre_scores[
+            final_prediction
+        ]
+
+        /
+
+        sum(
+            genre_scores.values()
+        )
+    )
+
+    return (
+        predictions,
+        final_prediction,
+        confidence
+    )
+
+# =====================================================
+# UI
+# =====================================================
+
+st.title(
+    "🎵 Music Genre Classification"
+)
+
+tab1, tab2 = st.tabs(
     [
         "Upload Audio",
-        "YouTube URL"
+        "YouTube Link"
     ]
 )
 
-audio_path = None
+song_path = None
 
-# ==================================================
-# UPLOAD AUDIO
-# ==================================================
+# =====================================================
+# AUDIO UPLOAD
+# =====================================================
 
-if input_method == "Upload Audio":
+with tab1:
 
     uploaded_file = st.file_uploader(
-        "Upload WAV File",
+        "Upload WAV file",
         type=["wav"]
     )
 
-    if uploaded_file is not None:
+    if uploaded_file:
 
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".wav"
-        ) as tmp_file:
+        with open(
+            "temp.wav",
+            "wb"
+        ) as f:
 
-            tmp_file.write(
+            f.write(
                 uploaded_file.read()
             )
 
-            audio_path = tmp_file.name
+        song_path = "temp.wav"
 
-            song_name = uploaded_file.name
+# =====================================================
+# YOUTUBE
+# =====================================================
 
-# ==================================================
-# YOUTUBE URL
-# ==================================================
-
-if input_method == "YouTube URL":
+with tab2:
 
     youtube_url = st.text_input(
         "Paste YouTube URL"
     )
 
-    if youtube_url:
+    if st.button(
+        "Analyze Song"
+    ):
 
         with st.spinner(
             "Downloading audio..."
         ):
 
-            ydl_opts = {
-                "format": "bestaudio/best",
-                "outtmpl": "youtube_audio",
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "wav"
-                }],
-                "quiet": True
-            }
+            song_path = download_youtube_audio(
+                youtube_url
+            )
 
-            with yt_dlp.YoutubeDL(
-                ydl_opts
-            ) as ydl:
+# =====================================================
+# RUN PREDICTION
+# =====================================================
 
-                info = ydl.extract_info(
-                    youtube_url,
-                    download=True
-                )
+if song_path:
 
-                song_name = info["title"]
+    st.audio(song_path)
 
-            audio_path = "youtube_audio.wav"
-
-# ==================================================
-# RESULTS
-# ==================================================
-
-if audio_path is not None:
-
-    predictions = predict_song_genre(
-        audio_path
+    y, sr = librosa.load(
+        song_path,
+        duration=30
     )
 
-    final_prediction = Counter(
-        predictions.values()
-    ).most_common(1)[0][0]
+    col1, col2 = st.columns(2)
 
-    st.success(
-        f"🎯 Final Prediction: {final_prediction.upper()}"
-    )
+    with col1:
+
+        fig, ax = plt.subplots(
+            figsize=(8,3)
+        )
+
+        librosa.display.waveshow(
+            y,
+            sr=sr,
+            ax=ax
+        )
+
+        ax.set_title(
+            "Waveform"
+        )
+
+        st.pyplot(fig)
+
+    with col2:
+
+        D = librosa.amplitude_to_db(
+            np.abs(
+                librosa.stft(y)
+            ),
+            ref=np.max
+        )
+
+        fig, ax = plt.subplots(
+            figsize=(8,3)
+        )
+
+        librosa.display.specshow(
+            D,
+            sr=sr,
+            x_axis='time',
+            y_axis='log',
+            cmap='magma',
+            ax=ax
+        )
+
+        ax.set_title(
+            "Spectrogram"
+        )
+
+        st.pyplot(fig)
+
+    predictions, final_prediction, confidence = \
+        predict_song_genre(
+            song_path
+        )
 
     results_df = pd.DataFrame({
 
-        "Song": [song_name] * 3,
-
         "Model": [
+
             "Logistic Regression",
             "Random Forest",
             "XGBoost"
         ],
 
         "Prediction": [
-            predictions["Logistic Regression"],
-            predictions["Random Forest"],
-            predictions["XGBoost"]
+
+            predictions[
+                "Logistic Regression"
+            ],
+
+            predictions[
+                "Random Forest"
+            ],
+
+            predictions[
+                "XGBoost"
+            ]
+        ],
+
+        "Accuracy": [
+
+            lr_acc,
+            rf_acc,
+            xgb_acc
         ]
     })
 
@@ -342,89 +430,11 @@ if audio_path is not None:
         use_container_width=True
     )
 
-    # ==========================================
-    # AUDIO VISUALIZATION
-    # ==========================================
-
-    y, sr = librosa.load(
-        audio_path,
-        duration=30
+    st.success(
+        f"Final Prediction: {final_prediction.upper()}"
     )
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.subheader(
-            "Waveform"
-        )
-
-        fig, ax = plt.subplots(
-            figsize=(8,3)
-        )
-
-        librosa.display.waveshow(
-            y,
-            sr=sr,
-            ax=ax
-        )
-
-        st.pyplot(fig)
-
-    with col2:
-
-        st.subheader(
-            "Spectrogram"
-        )
-
-        D = librosa.amplitude_to_db(
-            np.abs(librosa.stft(y)),
-            ref=np.max
-        )
-
-        fig, ax = plt.subplots(
-            figsize=(8,3)
-        )
-
-        img = librosa.display.specshow(
-            D,
-            sr=sr,
-            x_axis="time",
-            y_axis="log",
-            ax=ax
-        )
-
-        fig.colorbar(
-            img,
-            ax=ax
-        )
-
-        st.pyplot(fig)
-
-    # ==========================================
-    # MODEL PERFORMANCE
-    # ==========================================
-
-    st.subheader(
-        "Model Performance"
-    )
-
-    performance_df = pd.DataFrame({
-
-        "Model": [
-            "Logistic Regression",
-            "Random Forest",
-            "XGBoost"
-        ],
-
-        "Accuracy": [
-            0.715,
-            0.730,
-            0.735
-        ]
-    })
-
-    st.dataframe(
-        performance_df,
-        use_container_width=True
+    st.metric(
+        "Confidence",
+        f"{confidence:.2%}"
     )
