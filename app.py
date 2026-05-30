@@ -13,9 +13,6 @@ import requests
 from collections import Counter
 from io import BytesIO
 
-# ==================================================
-# PAGE CONFIG
-# ==================================================
 
 st.set_page_config(
     page_title="🎵 Genre Classifier",
@@ -23,7 +20,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS minimo — solo lo necesario para que se vea bien
+# Style
 st.markdown("""
 <style>
     .pred-box {
@@ -49,13 +46,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================================================
 # LOAD MODELS
-# ==================================================
 
-# Cambia GITHUB_BASE si tus .pkl están en GitHub.
-# Si están en la misma carpeta que app.py, se cargan directo.
-GITHUB_BASE = "https://raw.githubusercontent.com/TU_USUARIO/TU_REPO/main/"
+
+
+
 
 @st.cache_resource(show_spinner="Cargando modelos...")
 def load_models():
@@ -80,9 +75,7 @@ def load_models():
                 st.stop()
     return loaded["lr"], loaded["rf"], loaded["xgb"], loaded["scaler"], loaded["encoder"]
 
-# ==================================================
-# FEATURE EXTRACTION
-# ==================================================
+# Feature Extraction
 
 def extract_features(file_path):
     y, sr = librosa.load(file_path, duration=30)
@@ -130,9 +123,7 @@ def extract_features(file_path):
 
     return features, y, sr
 
-# ==================================================
-# PREDICTION
-# ==================================================
+# Prediction
 
 def predict_genre(file_path, lr_model, rf_model, xgb_model, scaler, encoder):
     features, y, sr = extract_features(file_path)
@@ -155,22 +146,18 @@ def predict_genre(file_path, lr_model, rf_model, xgb_model, scaler, encoder):
 
     return results, probas, y, sr
 
-# ==================================================
-# HEADER
-# ==================================================
+# Header
 
-st.title("🎵 Music Genre Classifier")
+st.title(" ⋆˚࿔ Music Genre Classifier")
 st.write("Sube un audio y los modelos predicen el género musical.")
 st.divider()
 
-# ==================================================
-# UPLOAD
-# ==================================================
+# Upload audio
 
 uploaded_file = st.file_uploader("Sube un archivo de audio", type=["wav", "mp3", "ogg", "flac"])
 
 if uploaded_file is None:
-    st.info("👆 Sube un audio para empezar")
+    st.info("⬆ Sube un audio para empezar")
     st.stop()
 
 with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
@@ -180,9 +167,7 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
 st.audio(audio_path)
 st.divider()
 
-# ==================================================
-# PREDICT
-# ==================================================
+
 
 lr_model, rf_model, xgb_model, scaler, encoder = load_models()
 
@@ -193,11 +178,9 @@ with st.spinner("Analizando audio..."):
 
 final_pred = Counter(predictions.values()).most_common(1)[0][0]
 
-# ==================================================
-# RESULTADO FINAL
-# ==================================================
+# Final results
 
-st.subheader("🎯 Resultado final")
+st.subheader("‧₊ ♪˚⊹ Resultado final")
 st.markdown(
     f'<div class="pred-box">🎶 {final_pred.upper()}</div>',
     unsafe_allow_html=True
@@ -206,11 +189,8 @@ st.caption("Votación mayoritaria entre los 3 modelos")
 
 st.divider()
 
-# ==================================================
-# PREDICCIÓN POR MODELO
-# ==================================================
-
-st.subheader("🤖 Predicción por modelo")
+# Pred models
+st.subheader("⋆✴︎˚｡⋆ Predicción por modelo")
 
 col1, col2, col3 = st.columns(3)
 for col, (model_name, pred) in zip([col1, col2, col3], predictions.items()):
@@ -223,12 +203,9 @@ for col, (model_name, pred) in zip([col1, col2, col3], predictions.items()):
         """, unsafe_allow_html=True)
 
 st.divider()
+# Prob graph
 
-# ==================================================
-# GRÁFICA DE PROBABILIDADES POR MODELO
-# ==================================================
-
-st.subheader("📊 Confianza por género")
+st.subheader(".☘︎ ݁˖ Confianza por género")
 
 tab1, tab2, tab3 = st.tabs(list(predictions.keys()))
 
@@ -257,11 +234,9 @@ for tab, model_name in zip([tab1, tab2, tab3], predictions.keys()):
 
 st.divider()
 
-# ==================================================
-# WAVEFORM Y ESPECTROGRAMA
-# ==================================================
+# WaveForm
 
-st.subheader("🔊 Visualización del audio")
+st.subheader(".ೀ Visualización del audio")
 
 col_w, col_s = st.columns(2)
 
@@ -287,11 +262,8 @@ with col_s:
 
 st.divider()
 
-# ==================================================
-# MÉTRICAS DE MODELOS
-# ==================================================
-
-st.subheader("📈 Métricas de los modelos")
+# Metrics/Model
+st.subheader("📈 Métricas de los modelos .ೀ")
 
 metrics_df = pd.DataFrame({
     "Modelo":    ["Logistic Regression", "Random Forest", "XGBoost"],
