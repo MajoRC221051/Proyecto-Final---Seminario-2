@@ -245,7 +245,7 @@ def load_models():
         np.random.seed(42)
         rows = []
         for i, g in enumerate(GENRES):
-            for _ in range(100):
+            for _ in range(50):  # 50 per genre = 500 total, trains in seconds
                 r = {
                     'chroma_stft_mean': np.random.normal(.35+i*.01,.05),
                     'chroma_stft_var':  np.random.normal(.08,.02),
@@ -282,18 +282,27 @@ def load_models():
     X_train_sc  = scaler.fit_transform(X_train)
     X_test_sc   = scaler.transform(X_test)
 
-    rf = RandomForestClassifier(n_estimators=300, max_depth=20,
+    # ── cap dataset size so training is always fast
+    MAX_ROWS = 800
+    if len(X_train) > MAX_ROWS:
+        idx = np.random.choice(len(X_train), MAX_ROWS, replace=False)
+        X_train    = X_train.iloc[idx] if hasattr(X_train, 'iloc') else X_train[idx]
+        X_train_sc = X_train_sc[idx]
+        y_train    = y_train[idx]
+
+    rf = RandomForestClassifier(n_estimators=50, max_depth=8,
                                 random_state=42, n_jobs=-1)
     rf.fit(X_train, y_train)
 
     xgb_m = xgb.XGBClassifier(
         objective='multi:softmax', num_class=len(GENRES),
-        n_estimators=200, max_depth=6, learning_rate=.05,
+        n_estimators=50, max_depth=4, learning_rate=.15,
         subsample=.8, colsample_bytree=.8,
-        eval_metric='mlogloss', random_state=42, verbosity=0)
+        eval_metric='mlogloss', random_state=42, verbosity=0,
+        tree_method='hist')   # hist is much faster than 'exact'
     xgb_m.fit(X_train, y_train)
 
-    lr = LogisticRegression(max_iter=5000, random_state=42)
+    lr = LogisticRegression(max_iter=300, random_state=42, solver='saga')
     lr.fit(X_train_sc, y_train)
 
     metrics = {}
@@ -632,8 +641,17 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────
 # LOAD MODELS
 # ─────────────────────────────────────────────────────────────
-with st.spinner("⚙️ Initializing models…"):
-    bundle = load_models()
+if "bundle" not in st.session_state:
+    with st.status("⚙️ Initializing models…", expanded=True) as status:
+        st.write("📦 Loading libraries and data…")
+        bundle = load_models()
+        st.write("🌲 Random Forest — ready")
+        st.write("⚡ XGBoost — ready")
+        st.write("📐 Logistic Regression — ready")
+        status.update(label="✅ Models ready!", state="complete", expanded=False)
+    st.session_state["bundle"] = bundle
+else:
+    bundle = st.session_state["bundle"]
 
 
 # ─────────────────────────────────────────────────────────────
